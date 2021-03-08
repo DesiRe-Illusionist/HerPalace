@@ -4,6 +4,7 @@ using System;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.Video;
+using CustomExtensions;
 
 
 public class GazeInteractionController : MonoBehaviour
@@ -69,7 +70,7 @@ public class GazeInteractionController : MonoBehaviour
                 videoPlayer.Prepare();
                 if (isFirstScreen) {
                     Debug.Log("Show first frame");
-                    ShowFirstFrame();
+                    StartCoroutine(videoPlayer.ShowFirstFrame());
                 } else {
                     PlayVideo();
                 }
@@ -91,6 +92,7 @@ public class GazeInteractionController : MonoBehaviour
                     hasBeenHovered = true;
                     hoverTimer += Time.deltaTime;
                     double spawnThreshold = Math.Max(this.videoPlayer.clip.length - videoTime - 2, hoverToActivateThreshold);
+                    Debug.Log("SpawnThreshold is " + spawnThreshold.ToString());
 
                     if (hoverTimer > hoverToSelectThreshold && hoverTimer <= spawnThreshold) {
                         PlayVideo();
@@ -205,7 +207,13 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     public void ReturnToOriginalState() {
-        this.transform.position = originalPosition;
+        float step = GetDistanceFromCamera() * 0.01f;
+        this.transform.position = Vector3.MoveTowards(
+            this.transform.position,
+            originalPosition,
+            step
+        );
+
         this.audioSource.volume = 1.0f;
     }
     public void SetFirstScreen(bool value) {
@@ -252,35 +260,31 @@ public class GazeInteractionController : MonoBehaviour
     }
 }
 
-// namespace CustomExtensions
-// {
-//     public static class VideoPlayerExtentions 
-//     {
-//         public static IEnumerator ShowFirstFrame(this VideoPlayer player)
-//         {
-//             VideoPlayer.FrameReadyEventHandler frameReadyHandler = null;
-//             bool frameReady = false;
-//             bool oldSendFrameReadyEvents = player.sendFrameReadyEvents;
+namespace CustomExtensions
+{
+    public static class VideoPlayerExtentions 
+    {
+        public static IEnumerator ShowFirstFrame(this VideoPlayer player)
+        {
+            VideoPlayer.FrameReadyEventHandler frameReadyHandler = null;
+            bool frameReady = false;
+            bool oldSendFrameReadyEvents = player.sendFrameReadyEvents;
             
-//             frameReadyHandler =  (source,index)=>{
-//                 frameReady = true;
-//                 player.frameReady -= frameReadyHandler;
-//                 player.sendFrameReadyEvents = oldSendFrameReadyEvents;
+            frameReadyHandler =  (source,index)=>{
+                frameReady = true;
+                player.frameReady -= frameReadyHandler;
+                player.sendFrameReadyEvents = oldSendFrameReadyEvents;
+            };
 
-//                 RenderTexture renderTexture = source.texture as RenderTexture;
+            player.frameReady += frameReadyHandler;
+            player.sendFrameReadyEvents = true;
 
+            player.Prepare();
+            player.StepForward();
 
-//             };
-
-//             player.frameReady += frameReadyHandler;
-//             player.sendFrameReadyEvents = true;
-
-//             player.Prepare();
-//             player.StepForward();
-
-//             while(!frameReady){
-//                 yield return null;
-//             }    
-//         }  
-//     }
-// }
+            while(!frameReady){
+                yield return null;
+            }    
+        }  
+    }
+}
