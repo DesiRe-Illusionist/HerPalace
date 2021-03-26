@@ -20,7 +20,7 @@ public class ScreenSystemController : MonoBehaviour
 
     public int nonExistentInstanceId = -99;
 
-    public float screenDisappearThreshold = 50f;
+    public float screenDisappearThreshold = 500f;
 
     public float restartWaitThreshold = 5f;
 
@@ -43,8 +43,8 @@ public class ScreenSystemController : MonoBehaviour
 
         AssignVideoToScreenAndShuffle();
     }
-    void Start()
-    {
+
+    void OnEnable() {
         GazeInteractionController firstScreen = screenQueue.Dequeue();
         firstScreen.gameObject.SetActive(true);
         firstScreen.SetFirstScreen(true);
@@ -53,16 +53,7 @@ public class ScreenSystemController : MonoBehaviour
 
     // Update is called once per frame
     void Update()
-    {
-        if (!allSpawned && screenQueue.Count == 0) {
-            allSpawned = true;
-
-            foreach (GazeInteractionController screen in spawnedChildren)
-            {
-                screen.SetAllSpawned(true);
-            }
-        }
-
+    { 
         if (allSpawned && !screenDisappeared) {
             int selectedScreen = GetSelectedScreen();
             if (selectedScreen == nonExistentInstanceId) {
@@ -102,6 +93,12 @@ public class ScreenSystemController : MonoBehaviour
             GazeInteractionController nextScreen = screenQueue.Dequeue();
             nextScreen.gameObject.SetActive(true);
             spawnedChildren.Add(nextScreen);
+        } else if (screenQueue.Count == 0) {
+            allSpawned = true;
+            foreach (GazeInteractionController screen in spawnedChildren)
+            {
+                screen.SetAllSpawned(true);
+            }
         }
     }
 
@@ -150,6 +147,6 @@ public class ScreenSystemController : MonoBehaviour
         screenDisappeared = false;
         restartWaitTime = 0f;
         Awake();
-        Start();
+        OnEnable();
     }
 }

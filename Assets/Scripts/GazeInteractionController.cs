@@ -4,42 +4,26 @@ using System;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.Video;
-using CustomExtensions;
 
 
 public class GazeInteractionController : MonoBehaviour
 {
     public XRSimpleInteractable interactable;
-
-    private Queue<VideoClip> videoClips = new Queue<VideoClip>();
-    float hoverTimer;
-    public float hoverToSelectThreshold = 2;
+    public float hoverToSelectThreshold = 3;
     public float hoverToActivateThreshold = 6;
-
     public bool isFirstScreen = false;
 
+    private Queue<VideoClip> videoClips = new Queue<VideoClip>();
     private VideoPlayer videoPlayer;
-
     private AudioSource audioSource;
-
+    private float hoverTimer;
     private bool spawnedNext = false;
-
     private bool allSpawned = false;
-
     private bool hasBeenHovered = false;
-
     private bool videoAssigned = false;
-
-    private double videoTime = 0;
-
     private Vector3 originalPosition;
-
-    private Texture2D videoFrame;
-
-    private Renderer rend;
-    private Texture tex;
-
-    void OnEnable() {
+    
+    void Awake() {
         videoPlayer = this.GetComponent<VideoPlayer>();
         audioSource = videoPlayer.GetComponentInChildren<AudioSource>();
         videoPlayer.audioOutputMode = VideoAudioOutputMode.AudioSource;
@@ -51,6 +35,10 @@ public class GazeInteractionController : MonoBehaviour
         originalPosition = this.gameObject.transform.position;
     }
 
+    void OnEnable() {
+        StartCoroutine(PrepareVideoClips());
+    }
+
     void OnDisable() {
         videoPlayer.Stop();
         Debug.Log("Script disabled");
@@ -60,17 +48,11 @@ public class GazeInteractionController : MonoBehaviour
     void Start()
     {
         hoverTimer = 0;
-        videoFrame = new Texture2D(2, 2);
-        if (videoClips.Count > 0) {
-            videoAssigned = true;
-            LoadVideoClip();
-            Debug.Log("Start(): Screen has " + this.videoClips.Count + " videos.");
+        if (videoAssigned) {
             if (videoPlayer.isActiveAndEnabled) {
-                videoPlayer.time = 0;
                 videoPlayer.Prepare();
                 if (isFirstScreen) {
                     Debug.Log("Show first frame");
-                    StartCoroutine(videoPlayer.ShowFirstFrame());
                 } else {
                     PlayVideo();
                 }
@@ -91,7 +73,12 @@ public class GazeInteractionController : MonoBehaviour
 
                     hasBeenHovered = true;
                     hoverTimer += Time.deltaTime;
-                    double spawnThreshold = Math.Max(this.videoPlayer.clip.length - videoTime - 2, hoverToActivateThreshold);
+
+                    double spawnThreshold = Math.Max(
+                        this.videoPlayer.clip.length - this.videoPlayer.time - 2, 
+                        hoverToActivateThreshold
+                    );
+
                     Debug.Log("SpawnThreshold is " + spawnThreshold.ToString());
 
                     if (hoverTimer > hoverToSelectThreshold && hoverTimer <= spawnThreshold) {
@@ -101,16 +88,13 @@ public class GazeInteractionController : MonoBehaviour
                         PlayVideoAndSpawnNext();
                     }
                 } else {
-                    videoTime = videoPlayer.time;
                     if (hasBeenHovered) {
                         hoverTimer = 0;
                         PauseVideo();
                     }
                 }
             } else {
-                if (!videoPlayer.isPlaying) {
-                    PlayVideo();
-                }
+                PlayVideo();
 
                 if (interactable.isHovered) {
                     hoverTimer += Time.deltaTime;
@@ -131,7 +115,7 @@ public class GazeInteractionController : MonoBehaviour
                 }
             }
         } else {
-            Start();
+            Debug.Log("Videos not yet loaded");
         }
     }
 
@@ -154,7 +138,9 @@ public class GazeInteractionController : MonoBehaviour
         }
 
         if (videoPlayer.time >= videoPlayer.clip.length) {
+            videoClips.Enqueue(videoPlayer.clip);
             LoadVideoClip();
+            videoPlayer.time = 0;
             videoPlayer.Play();
             videoPlayer.SetTargetAudioSource(0, audioSource);
             audioSource.Play();
@@ -188,7 +174,7 @@ public class GazeInteractionController : MonoBehaviour
 
         this.transform.position = Vector3.MoveTowards(
             this.transform.position,
-            new Vector3(0f, 0f, 0f),
+            new Vector3(0f, this.transform.position.y, 0f),
             step
         );
     }
@@ -213,8 +199,6 @@ public class GazeInteractionController : MonoBehaviour
             originalPosition,
             step
         );
-
-        this.audioSource.volume = 1.0f;
     }
     public void SetFirstScreen(bool value) {
         this.isFirstScreen = value;
@@ -234,6 +218,8 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     public void Disappear() {
+        videoClips = new Queue<VideoClip>();
+
         this.videoPlayer.Stop();
         this.audioSource.Stop();
         this.videoPlayer.time = 0;
@@ -252,39 +238,20 @@ public class GazeInteractionController : MonoBehaviour
     private void LoadVideoClip() {
         VideoClip clip = videoClips.Dequeue();
         videoPlayer.clip = clip;
-        videoClips.Enqueue(clip);
     }
 
     private void ShowFirstFrame() {
         videoPlayer.playOnAwake = true;
     }
-}
 
-namespace CustomExtensions
-{
-    public static class VideoPlayerExtentions 
+    IEnumerator PrepareVideoClips() 
     {
-        public static IEnumerator ShowFirstFrame(this VideoPlayer player)
-        {
-            VideoPlayer.FrameReadyEventHandler frameReadyHandler = null;
-            bool frameReady = false;
-            bool oldSendFrameReadyEvents = player.sendFrameReadyEvents;
-            
-            frameReadyHandler =  (source,index)=>{
-                frameReady = true;
-                player.frameReady -= frameReadyHandler;
-                player.sendFrameReadyEvents = oldSendFrameReadyEvents;
-            };
+        while (videoClips.Count == 0) {
+            yield return null;
+        }
 
-            player.frameReady += frameReadyHandler;
-            player.sendFrameReadyEvents = true;
-
-            player.Prepare();
-            player.StepForward();
-
-            while(!frameReady){
-                yield return null;
-            }    
-        }  
+        LoadVideoClip();
+        Debug.Log("Start(): Screen has " + this.videoClips.Count + " videos.");
+        this.videoAssigned = true;
     }
 }
