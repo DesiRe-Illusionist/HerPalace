@@ -6,9 +6,9 @@ using UnityEngine.Video;
 using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(RawImage))]
-public class OnHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler {
+public class OnHoverMaterial : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler {
 
-    public Texture videoTexture;
+    public Material videoMaterial;
     public Texture imageTexture;
     public VideoClip videoClip;
     public float hoverToSelectThreshold = 2;
@@ -19,6 +19,7 @@ public class OnHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler 
     private AudioSource audioSource;
     private bool isHovered = false;
     private bool isHoverEnabled = true;
+
     private bool hasBeenHovered = false;
     private float hoverTimer = 0;
     private Vector3 originalPosition;
@@ -45,7 +46,7 @@ public class OnHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler 
             image.texture = imageTexture;
             isHoverEnabled = false;
         } else {
-            image.texture = videoTexture;
+            image.material = videoMaterial;
         }
     }
     void Start()
@@ -77,7 +78,7 @@ public class OnHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler 
             );
 
             if (hoverTimer > hoverToSelectThreshold) {
-                if (isFirstScreen && image.texture.Equals(imageTexture)) {
+                if (isFirstScreen && imageTexture.Equals(image.texture)) {
                     StartCoroutine(animateFirstScreen());
                 } else {
                     PlayVideo();
@@ -90,8 +91,9 @@ public class OnHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler 
     }
     private void PlayVideo() {
 
-        if (!image.texture.Equals(videoTexture)) {
-            image.texture = videoTexture;
+        if (imageTexture.Equals(image.texture)) {
+            image.material = videoMaterial;
+            image.texture = null;
             image.color = Color.white;
         }
 

@@ -14,13 +14,17 @@ public class GazeInteractionController : MonoBehaviour
     public bool isFirstScreen = false;
 
     private Queue<VideoClip> videoClips = new Queue<VideoClip>();
+    private Texture imageTexture;
+    private Texture videoTexture;
+    private Material material;
     private VideoPlayer videoPlayer;
     private AudioSource audioSource;
-    private float hoverTimer;
-    private bool spawnedNext = false;
+    private float hoverTimer = 0;
+    private bool hasSpawnedNextEpisode = false;
     private bool allSpawned = false;
     private bool hasBeenHovered = false;
-    private bool videoAssigned = false;
+    private bool episodesAssigned = false;
+    private bool isHoverEnabled = true;
     private Vector3 originalPosition;
     
     void Awake() {
@@ -31,12 +35,14 @@ public class GazeInteractionController : MonoBehaviour
         videoPlayer.SetTargetAudioSource(0, audioSource);
         videoPlayer.controlledAudioTrackCount = 1;
         audioSource.volume = 1.0f;
+        videoPlayer.loopPointReached += ReloadVideoAndPlay;
+
+        videoTexture = videoPlayer.targetTexture;
+
+        material = this.GetComponent<MeshRenderer>().material;
+        material.color = Color.gray;
 
         originalPosition = this.gameObject.transform.position;
-    }
-
-    void OnEnable() {
-        StartCoroutine(PrepareVideoClips());
     }
 
     void OnDisable() {
@@ -48,101 +54,99 @@ public class GazeInteractionController : MonoBehaviour
     void Start()
     {
         hoverTimer = 0;
-        if (videoAssigned) {
-            if (videoPlayer.isActiveAndEnabled) {
-                videoPlayer.Prepare();
-                if (isFirstScreen) {
-                    Debug.Log("Show first frame");
-                } else {
-                    PlayVideo();
-                }
-            } else {
-                Debug.LogError("VideoPlayer is not active and enabled");
-            }
+
+        if (this.isFirstScreen) {
+            material.mainTexture = imageTexture;
+            isHoverEnabled = false;
         } else {
-            Debug.Log("Videos not yet loaded");
+            material.mainTexture = videoTexture;
+        }
+
+        if (videoPlayer.isActiveAndEnabled) {
+            StartCoroutine(PrepareVideoPlayer());
+        } else {
+            Debug.LogError("VideoPlayer is not active and enabled");
+        }
+
+        if (isFirstScreen) {
+            StartCoroutine(FirstScreenFadeIn());
+        } else {
+            StartCoroutine(PlayVideoAtStart());
         }
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (videoAssigned) {
-            if (!allSpawned) {
-                if (interactable.isHovered) {
+        if (isHoverEnabled) {
+            if (interactable.isHovered) {
+                OnHoverEnter();
+                hoverTimer += Time.deltaTime;
 
-                    hasBeenHovered = true;
-                    hoverTimer += Time.deltaTime;
+                if (allSpawned) {
+                    PlayVideo();
+                    if (hoverTimer > hoverToSelectThreshold) {
+                        FocusOnCurrentVideo();
 
+                        if (hoverTimer < hoverToActivateThreshold) {
+                            ReturnToOriginalPosition();
+                        } else if (hoverTimer >= hoverToActivateThreshold) {
+                            MoveTowardCamera();
+                        }
+                    }  
+                } else if (!hasSpawnedNextEpisode) {
                     double spawnThreshold = Math.Max(
                         this.videoPlayer.clip.length - this.videoPlayer.time - 2, 
                         hoverToActivateThreshold
                     );
 
-                    Debug.Log("SpawnThreshold is " + spawnThreshold.ToString());
-
                     if (hoverTimer > hoverToSelectThreshold && hoverTimer <= spawnThreshold) {
-                        PlayVideo();
-
+                        if (isFirstScreen && material.mainTexture.Equals(imageTexture)) {
+                            StartCoroutine(AnimateFirstScreen());
+                        } else {
+                            PlayVideo();
+                        }
                     } else if (hoverTimer > spawnThreshold) {
                         PlayVideoAndSpawnNext();
                     }
                 } else {
-                    if (hasBeenHovered) {
-                        hoverTimer = 0;
-                        PauseVideo();
+                    if (hoverTimer > hoverToSelectThreshold) {
+                        PlayVideo();
                     }
                 }
             } else {
-                PlayVideo();
-
-                if (interactable.isHovered) {
-                    hoverTimer += Time.deltaTime;
-
-                    if (hoverTimer > hoverToSelectThreshold && hoverTimer < hoverToActivateThreshold) {
-                        ReturnToOriginalState();
-                        FocusOnCurrentVideo();
-
-                    } else if (hoverTimer >= hoverToActivateThreshold) {
-                        MoveTowardCamera();
-                    }
-
-                } else {
+                OnHoverExit();
+                
+                if (allSpawned) {
+                    PlayVideo();
                     if (hoverTimer >= hoverToActivateThreshold) {
-                        ReturnToOriginalState();
+                        ReturnToOriginalPosition();
+                        audioSource.volume = 1.0f;
                     }
-                    hoverTimer = 0;
+                } else {
+                    if (hasBeenHovered) {
+                        PauseVideo();
+                    }
                 }
+                hoverTimer = 0;
             }
-        } else {
-            Debug.Log("Videos not yet loaded");
         }
     }
 
     public void Dim() {
-
-        // Material material = this.GetComponent<MeshRenderer>().material;
-        // Color currentColor = material.GetColor("current_color");
-        // Debug.Log("The current color is " + currentColor.ToString());
-        // currentColor.a = 0.3f;
-        // material.SetColor("current_color", currentColor);
 
         this.audioSource.volume = 0.2f;
     }
 
     private void PlayVideo() {
 
+        if (isFirstScreen && !material.mainTexture.Equals(videoTexture)) {
+            material.mainTexture = videoTexture;
+            material.color = Color.white;
+        }
+        
         if (!videoPlayer.isPlaying) {
             videoPlayer.Play();
-            audioSource.Play();
-        }
-
-        if (videoPlayer.time >= videoPlayer.clip.length) {
-            videoClips.Enqueue(videoPlayer.clip);
-            LoadVideoClip();
-            videoPlayer.time = 0;
-            videoPlayer.Play();
-            videoPlayer.SetTargetAudioSource(0, audioSource);
             audioSource.Play();
         }
     }
@@ -150,18 +154,21 @@ public class GazeInteractionController : MonoBehaviour
     private void PlayVideoAndSpawnNext() {
         PlayVideo();
 
-        if (!spawnedNext) {
+        if (!hasSpawnedNextEpisode) {
             SendMessageUpwards("SpawnNext", SendMessageOptions.RequireReceiver);
-            spawnedNext = true;
+            hasSpawnedNextEpisode = true;
         }
     }
     private void PauseVideo() {
-        videoPlayer.Pause();
-        audioSource.Pause();
+        if (videoPlayer.isPlaying) {
+            videoPlayer.Pause();
+            audioSource.Pause();
+        }
     }
 
     private void FocusOnCurrentVideo() {
 
+        audioSource.volume = 1.0f;
         this.SendMessageUpwards(
             "StartFocusedMode", 
             this.gameObject.GetInstanceID(), 
@@ -177,6 +184,13 @@ public class GazeInteractionController : MonoBehaviour
             new Vector3(0f, this.transform.position.y, 0f),
             step
         );
+
+        float fadeStep = Time.deltaTime * 0.1f;
+        Color curColor = this.material.color;
+        curColor.r -= fadeStep;
+        curColor.g -= fadeStep;
+        curColor.b -= fadeStep;
+        this.material.color = curColor;
     }
 
     public void MoveAwayFromCamera() {
@@ -192,7 +206,7 @@ public class GazeInteractionController : MonoBehaviour
         );
     }
 
-    public void ReturnToOriginalState() {
+    public void ReturnToOriginalPosition() {
         float step = GetDistanceFromCamera() * 0.01f;
         this.transform.position = Vector3.MoveTowards(
             this.transform.position,
@@ -205,11 +219,14 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     public void SetAllSpawned(bool value) {
-        Debug.Log("SetAllSpawned method invoked for " + this.gameObject.name);
         this.allSpawned = value;
     }
 
-    public bool isSelected() {
+    public void SetEpisodesAssigned(bool value) {
+        this.episodesAssigned = value;
+    }
+
+    public bool IsSelected() {
         return interactable.isHovered && hoverTimer > hoverToSelectThreshold;
     }
 
@@ -217,21 +234,15 @@ public class GazeInteractionController : MonoBehaviour
         return Vector3.Distance(new Vector3(0f, 0f, 0f), this.transform.position);
     }
 
-    public void Disappear() {
-        videoClips = new Queue<VideoClip>();
-
-        this.videoPlayer.Stop();
-        this.audioSource.Stop();
-        this.videoPlayer.time = 0;
-        this.audioSource.time = 0;
-        this.videoPlayer.targetTexture.Release();
-
-        spawnedNext = false;
-        allSpawned = false;
-        videoAssigned = false;
+    public bool IsImageSet() {
+        return this.imageTexture != null;
     }
 
-    public void addVideoClip(VideoClip videoClip) {
+    public void SetImage(Texture texture) {
+        this.imageTexture = texture;
+    }
+
+    public void AddVideoClip(VideoClip videoClip) {
         this.videoClips.Enqueue(videoClip);
     }
 
@@ -240,18 +251,111 @@ public class GazeInteractionController : MonoBehaviour
         videoPlayer.clip = clip;
     }
 
-    private void ShowFirstFrame() {
-        videoPlayer.playOnAwake = true;
+
+    private void OnHoverEnter() {
+        hasBeenHovered = true;
+        if (material.color.r < 1.0f) {
+            // StartCoroutine(ScreenHighlight());
+            material.color = Color.white;
+        }
     }
 
-    IEnumerator PrepareVideoClips() 
-    {
-        while (videoClips.Count == 0) {
+    private void OnHoverExit() {
+        if (!Color.gray.Equals(material.color)) {
+            material.color = Color.gray;
+        }
+    }
+
+    private IEnumerator AnimateFirstScreen() {
+        Color curColor = material.color;
+        float fadeRate = 0.01f;
+        while (curColor.r > 0) {
+            curColor.r -= fadeRate;
+            curColor.g -= fadeRate;
+            curColor.b -= fadeRate;
+            material.color = curColor;
             yield return null;
         }
 
+        Debug.Log("Faded to black. Start playing video");
+        PlayVideo();
+    }
+
+    private IEnumerator FirstScreenFadeIn() {
+        material.color = Color.black;
+        Color curColor = material.color;
+        float fadeRate = 0.001f;
+        while (curColor.r < 0.5) {
+            curColor.r += fadeRate;
+            curColor.g += fadeRate;
+            curColor.b += fadeRate;
+            material.color = curColor;
+            yield return null;
+        }
+
+        isHoverEnabled = true;
+    }
+
+    private IEnumerator ScreenHighlight() {
+        Color curColor = material.color;
+        float fadeRate = 0.01f;
+        while (curColor.r < 1.0f) {
+            curColor.r += fadeRate;
+            curColor.g += fadeRate;
+            curColor.b += fadeRate;
+            material.color = curColor;
+            yield return null;
+        }
+    }
+
+    private IEnumerator PrepareVideoPlayer() 
+    {
         LoadVideoClip();
-        Debug.Log("Start(): Screen has " + this.videoClips.Count + " videos.");
-        this.videoAssigned = true;
+        Debug.Log("PrepareVideoPlayer: Screen has " + this.videoClips.Count + " videos.");
+
+        while (!videoPlayer.isPrepared) {
+            videoPlayer.Prepare();
+            yield return null;
+        }
+    }
+
+    private IEnumerator PlayVideoAtStart() {
+        while (!videoPlayer.isPrepared || videoPlayer.clip == null) {
+            videoPlayer.Prepare();
+            Debug.Log("Preparing Video");
+            yield return null;
+        }
+
+        Debug.Log("Video player prepared");
+        PlayVideo();
+    }
+
+    private IEnumerator ReloadVideoAndPlay() {
+        VideoClip curClip = videoPlayer.clip;
+        this.videoClips.Enqueue(curClip);
+        Debug.Log("ReloadVideoAndPlay: Screen has " + this.videoClips.Count + " videos.");
+        LoadVideoClip();
+
+        while (!videoPlayer.isPrepared) {
+            videoPlayer.Prepare();
+            yield return null;
+        }
+        videoPlayer.time = 0;
+        videoPlayer.SetTargetAudioSource(0, audioSource);
+        videoPlayer.Play();
+        audioSource.Play();
+    }
+
+    private void ReloadVideoAndPlay(UnityEngine.Video.VideoPlayer vp) {
+        VideoClip curClip = vp.clip;
+        this.videoClips.Enqueue(curClip);
+        Debug.Log("ReloadVideoAndPlay: Screen has " + this.videoClips.Count + " videos.");
+        LoadVideoClip();
+
+
+        vp.time = 0;
+        vp.SetTargetAudioSource(0, audioSource);
+        vp.Play();
+        vp.Play();
     }
 }
