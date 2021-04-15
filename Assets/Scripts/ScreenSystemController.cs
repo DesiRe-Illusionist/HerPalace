@@ -48,7 +48,7 @@ public class ScreenSystemController : MonoBehaviour
         if (allSpawned && !screenDisappeared) {
             int selectedScreen = GetSelectedScreen();
             if (selectedScreen == nonExistentInstanceId) {
-                if (spawnedChildren[0].GetDistanceFromCamera() < screenDisappearThreshold) {
+                if (spawnedChildren[0].GetDistanceFromOriginalPos() < screenDisappearThreshold) {
                     foreach (GazeInteractionController screen in spawnedChildren) {
                         screen.MoveAwayFromCamera();
                     }
@@ -97,7 +97,19 @@ public class ScreenSystemController : MonoBehaviour
         if (allSpawned) {
             foreach (GazeInteractionController screen in spawnedChildren) {
                 if (screen.gameObject.GetInstanceID() != instanceId) {
-                    screen.Dim();
+                    StopCoroutine(screen.AudioVolumeFadeIn());
+                    StartCoroutine(screen.AudioVolumeFadeOut());
+                }
+            }
+        }
+    }
+
+    public void ExitFocusedMode(int instanceId) {
+        if (allSpawned) {
+            foreach (GazeInteractionController screen in spawnedChildren) {
+                if (screen.gameObject.GetInstanceID() != instanceId) {
+                    StopCoroutine(screen.AudioVolumeFadeOut());
+                    StartCoroutine(screen.AudioVolumeFadeIn());
                 }
             }
         }
@@ -121,7 +133,7 @@ public class ScreenSystemController : MonoBehaviour
         while (screens.Count > 0) {
             int randomIdx = UnityEngine.Random.Range(0, screens.Count);
             GazeInteractionController screen = screens[randomIdx];
-            screen.SetEpisodesAssigned(true);
+            // screen.SetEpisodesAssigned(true);
             screenQueue.Enqueue(screen);
             screens.RemoveAt(randomIdx);
         }

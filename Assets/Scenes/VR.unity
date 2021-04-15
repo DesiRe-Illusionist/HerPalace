@@ -3760,24 +3760,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   videoClips:
-  - {fileID: 32900000, guid: 5954970e377a34144b0d5b609568b258, type: 3}
-  - {fileID: 32900000, guid: f6d3e254eb13ac04ab46f2bb49165beb, type: 3}
-  - {fileID: 32900000, guid: d516b1e279cf8bd4ba46a5e1eddb0b42, type: 3}
-  - {fileID: 32900000, guid: 163d16d33a43d9f478497aee5d8e9c56, type: 3}
-  - {fileID: 32900000, guid: 0f080d1848a26394f8592915c4c98285, type: 3}
-  - {fileID: 32900000, guid: ebe30eb20f9a1ad409d736e1529ebb7b, type: 3}
-  - {fileID: 32900000, guid: 8409ac55c04b5044fa274681a669a2ca, type: 3}
-  - {fileID: 32900000, guid: 1f5dae4c413f6ae4fb3c71f84a39f94a, type: 3}
-  - {fileID: 32900000, guid: 4d556e4a640552e4799ef6f0e8c5acb6, type: 3}
-  - {fileID: 32900000, guid: 6789efc41cfcc534d8b89c1df618cd8e, type: 3}
-  - {fileID: 32900000, guid: ac95e6200d4454e4e8a001015e0a754c, type: 3}
-  - {fileID: 32900000, guid: 9f87390a5fcc2224cbcabfa8dc24e520, type: 3}
-  - {fileID: 32900000, guid: 1cc3cb3d3882136409d5e1b55862014d, type: 3}
-  - {fileID: 32900000, guid: 62af6215bbabb3541815ff3b8c30803e, type: 3}
-  - {fileID: 32900000, guid: 44c97c5eadd3a9942a1114487b15caeb, type: 3}
-  - {fileID: 32900000, guid: 111da98c04447d44da22106e670a348d, type: 3}
-  - {fileID: 32900000, guid: d1f2fcbcdcc23a545973773402338493, type: 3}
-  - {fileID: 32900000, guid: 80a56dc70c5e8174ba567742ef5ba75d, type: 3}
+  - {fileID: 32900000, guid: 205f8982121972f44bf22f9ede9d2660, type: 3}
+  - {fileID: 32900000, guid: 2fc76125057e27143bee31a7e6b7928d, type: 3}
+  - {fileID: 32900000, guid: 4ee1db87066c9c549ab3a00cda964d06, type: 3}
+  - {fileID: 32900000, guid: b4d55b44252c3394dad882d26fbc90d9, type: 3}
+  - {fileID: 32900000, guid: 7869fcb3872fc874fa9484f5df69440e, type: 3}
+  - {fileID: 32900000, guid: a29af615332ebb9478a58a1078de20b1, type: 3}
+  - {fileID: 32900000, guid: 8f7f548243e26114c91d03acf1c66268, type: 3}
+  - {fileID: 32900000, guid: 15a2bc38d1425fb43a790b98b2e8c013, type: 3}
+  - {fileID: 32900000, guid: 09aa85211f8da694e91f456077c2d53d, type: 3}
+  - {fileID: 32900000, guid: 5b1b1fcacdc2d0c4f85c899f36c90d18, type: 3}
+  - {fileID: 32900000, guid: 340e1cac412322e4f90da4cac1695b90, type: 3}
+  - {fileID: 32900000, guid: ff69ef86cd3a5ea40b98ed57956e8557, type: 3}
+  - {fileID: 32900000, guid: 364d4df5f7d4fd940ad0ee7963610bd9, type: 3}
+  - {fileID: 32900000, guid: 5526fb8463ff9054093a50ee9ec91bcc, type: 3}
+  - {fileID: 32900000, guid: 0afbc839154a4ae459a5274b2e91cf41, type: 3}
+  - {fileID: 32900000, guid: 799c9cf6ae8070542bc3003818a18295, type: 3}
+  - {fileID: 32900000, guid: b42afd5fd245bc8479cf316817950904, type: 3}
+  - {fileID: 32900000, guid: 2d6705c68aa505d449fa97a1debcf7b7, type: 3}
   images:
   - {fileID: 2800000, guid: e551730db0edf8941890180826f4b2e8, type: 3}
   - {fileID: 2800000, guid: e1ed75541c4ad394d862a61dc77e1ab4, type: 3}
@@ -3798,8 +3798,8 @@ MonoBehaviour:
   - {fileID: 2800000, guid: 3264566924e845d40923cb9d8133bb23, type: 3}
   - {fileID: 2800000, guid: 9074aea303e99164a9a639fcb2568623, type: 3}
   nonExistentInstanceId: -99
-  screenDisappearThreshold: 50
-  restartWaitThreshold: 5
+  screenDisappearThreshold: 100
+  restartWaitThreshold: 10
 --- !u!222 &1608992192
 CanvasRenderer:
   m_ObjectHideFlags: 0

@@ -23,9 +23,12 @@ public class GazeInteractionController : MonoBehaviour
     private bool hasSpawnedNextEpisode = false;
     private bool allSpawned = false;
     private bool hasBeenHovered = false;
-    private bool episodesAssigned = false;
+    private bool isInFocusedMode = false;
     private bool isHoverEnabled = true;
+
+    private bool isReloading = false;
     private Vector3 originalPosition;
+    private float originalDistanceFromCamera;
     
     void Awake() {
         videoPlayer = this.GetComponent<VideoPlayer>();
@@ -43,6 +46,7 @@ public class GazeInteractionController : MonoBehaviour
         material.color = Color.gray;
 
         originalPosition = this.gameObject.transform.position;
+        originalDistanceFromCamera = Vector3.Distance(new Vector3(0,0,0), originalPosition);
     }
 
     void OnDisable() {
@@ -85,33 +89,20 @@ public class GazeInteractionController : MonoBehaviour
 
                 if (allSpawned) {
                     PlayVideo();
+                    FocusOnCurrentVideo();
+
+                    if (hoverTimer > hoverToSelectThreshold && hoverTimer < hoverToActivateThreshold) {
+                        ReturnToOriginalPosition();
+                    } else if (hoverTimer >= hoverToActivateThreshold) {
+                        MoveTowardCamera();
+                    }
+                } else { 
                     if (hoverTimer > hoverToSelectThreshold) {
-                        FocusOnCurrentVideo();
-
-                        if (hoverTimer < hoverToActivateThreshold) {
-                            ReturnToOriginalPosition();
-                        } else if (hoverTimer >= hoverToActivateThreshold) {
-                            MoveTowardCamera();
-                        }
-                    }  
-                } else if (!hasSpawnedNextEpisode) {
-                    double spawnThreshold = Math.Max(
-                        this.videoPlayer.clip.length - this.videoPlayer.time - 2, 
-                        hoverToActivateThreshold
-                    );
-
-                    if (hoverTimer > hoverToSelectThreshold && hoverTimer <= spawnThreshold) {
                         if (isFirstScreen && material.mainTexture.Equals(imageTexture)) {
                             StartCoroutine(AnimateFirstScreen());
                         } else {
                             PlayVideo();
                         }
-                    } else if (hoverTimer > spawnThreshold) {
-                        PlayVideoAndSpawnNext();
-                    }
-                } else {
-                    if (hoverTimer > hoverToSelectThreshold) {
-                        PlayVideo();
                     }
                 }
             } else {
@@ -119,6 +110,9 @@ public class GazeInteractionController : MonoBehaviour
                 
                 if (allSpawned) {
                     PlayVideo();
+                    if (isInFocusedMode) {
+                        ReleaseFocus();
+                    }
                     if (hoverTimer >= hoverToActivateThreshold) {
                         ReturnToOriginalPosition();
                         audioSource.volume = 1.0f;
@@ -133,11 +127,6 @@ public class GazeInteractionController : MonoBehaviour
         }
     }
 
-    public void Dim() {
-
-        this.audioSource.volume = 0.2f;
-    }
-
     private void PlayVideo() {
 
         if (isFirstScreen && !material.mainTexture.Equals(videoTexture)) {
@@ -145,20 +134,12 @@ public class GazeInteractionController : MonoBehaviour
             material.color = Color.white;
         }
         
-        if (!videoPlayer.isPlaying) {
+        if (!videoPlayer.isPlaying && !isReloading) {
             videoPlayer.Play();
             audioSource.Play();
         }
     }
 
-    private void PlayVideoAndSpawnNext() {
-        PlayVideo();
-
-        if (!hasSpawnedNextEpisode) {
-            SendMessageUpwards("SpawnNext", SendMessageOptions.RequireReceiver);
-            hasSpawnedNextEpisode = true;
-        }
-    }
     private void PauseVideo() {
         if (videoPlayer.isPlaying) {
             videoPlayer.Pause();
@@ -167,10 +148,22 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     private void FocusOnCurrentVideo() {
-
-        audioSource.volume = 1.0f;
+        isInFocusedMode = true;
+        StopCoroutine(AudioVolumeFadeOut());
+        StartCoroutine(AudioVolumeFadeIn());
         this.SendMessageUpwards(
             "StartFocusedMode", 
+            this.gameObject.GetInstanceID(), 
+            SendMessageOptions.RequireReceiver
+        );
+    }
+
+    private void ReleaseFocus() {
+        isInFocusedMode = false;
+        StopCoroutine(AudioVolumeFadeOut());
+        StartCoroutine(AudioVolumeFadeIn());
+        this.SendMessageUpwards(
+            "ExitFocusedMode", 
             this.gameObject.GetInstanceID(), 
             SendMessageOptions.RequireReceiver
         );
@@ -185,16 +178,18 @@ public class GazeInteractionController : MonoBehaviour
             step
         );
 
-        float fadeStep = Time.deltaTime * 0.1f;
+        float fadeRate =  0.0001f;
         Color curColor = this.material.color;
-        curColor.r -= fadeStep;
-        curColor.g -= fadeStep;
-        curColor.b -= fadeStep;
-        this.material.color = curColor;
+        if (curColor.r > 0) {
+            curColor.r -= fadeRate;
+            curColor.g -= fadeRate;
+            curColor.b -= fadeRate;
+            material.color = curColor;
+        }
     }
 
     public void MoveAwayFromCamera() {
-        float step = GetDistanceFromCamera() * 0.001f;
+        float step = Vector3.Distance(new Vector3(0,0,0), this.transform.position) * 0.001f;
         this.transform.position = Vector3.MoveTowards(
             this.transform.position,
             new Vector3(
@@ -205,9 +200,8 @@ public class GazeInteractionController : MonoBehaviour
             step
         );
     }
-
     public void ReturnToOriginalPosition() {
-        float step = GetDistanceFromCamera() * 0.01f;
+        float step = GetDistanceFromOriginalPos() * 0.01f;
         this.transform.position = Vector3.MoveTowards(
             this.transform.position,
             originalPosition,
@@ -222,16 +216,13 @@ public class GazeInteractionController : MonoBehaviour
         this.allSpawned = value;
     }
 
-    public void SetEpisodesAssigned(bool value) {
-        this.episodesAssigned = value;
-    }
-
     public bool IsSelected() {
-        return interactable.isHovered && hoverTimer > hoverToSelectThreshold;
+        // return interactable.isHovered && hoverTimer > hoverToSelectThreshold;
+        return interactable.isHovered;
     }
 
-    public float GetDistanceFromCamera() {
-        return Vector3.Distance(new Vector3(0f, 0f, 0f), this.transform.position);
+    public float GetDistanceFromOriginalPos() {
+        return Vector3.Distance(this.originalPosition, this.transform.position);
     }
 
     public bool IsImageSet() {
@@ -251,18 +242,29 @@ public class GazeInteractionController : MonoBehaviour
         videoPlayer.clip = clip;
     }
 
-
     private void OnHoverEnter() {
         hasBeenHovered = true;
-        if (material.color.r < 1.0f) {
-            // StartCoroutine(ScreenHighlight());
-            material.color = Color.white;
+        
+        float disappearDistance = 3f;
+        float curDistance = Vector3.Distance(new Vector3(0,0,0), this.transform.position);
+        float targetColorVal = 0f;
+        if (curDistance > disappearDistance && curDistance <= originalDistanceFromCamera) {
+            targetColorVal = (float) Math.Pow((curDistance - disappearDistance) / (originalDistanceFromCamera - disappearDistance), 2);
+        } else if (curDistance > originalDistanceFromCamera) {
+            targetColorVal = 1.0f;
+        }
+        Color targetColor = new Color(targetColorVal, targetColorVal, targetColorVal, 1);
+        if (!targetColor.Equals(material.color)) {
+            StopCoroutine("FadeOnExit");
+            StartCoroutine(FadeOnHover(targetColor));
+            // material.color = Color.white;
         }
     }
 
     private void OnHoverExit() {
-        if (!Color.gray.Equals(material.color)) {
-            material.color = Color.gray;
+        Color dimedColor = new Color(0.25f, 0.25f, 0.25f, 1);
+        if (!dimedColor.Equals(material.color)) {
+            material.color = dimedColor;
         }
     }
 
@@ -284,7 +286,7 @@ public class GazeInteractionController : MonoBehaviour
     private IEnumerator FirstScreenFadeIn() {
         material.color = Color.black;
         Color curColor = material.color;
-        float fadeRate = 0.001f;
+        float fadeRate = 0.0005f;
         while (curColor.r < 0.5) {
             curColor.r += fadeRate;
             curColor.g += fadeRate;
@@ -296,18 +298,35 @@ public class GazeInteractionController : MonoBehaviour
         isHoverEnabled = true;
     }
 
-    private IEnumerator ScreenHighlight() {
+    private IEnumerator FadeOnHover(Color targetColor) {
         Color curColor = material.color;
         float fadeRate = 0.01f;
-        while (curColor.r < 1.0f) {
-            curColor.r += fadeRate;
-            curColor.g += fadeRate;
-            curColor.b += fadeRate;
+        while (Math.Abs(curColor.r - targetColor.r) > 0.02) {
+            curColor.r += (targetColor.r - curColor.r) * fadeRate;
+            curColor.g += (targetColor.g - curColor.g) * fadeRate;
+            curColor.b += (targetColor.b - curColor.b) * fadeRate;
             material.color = curColor;
             yield return null;
         }
     }
 
+    public IEnumerator AudioVolumeFadeOut() {
+
+        float fadeRate = 0.005f;
+        while (this.audioSource.volume > 0.2f) {
+            this.audioSource.volume -= fadeRate;
+            yield return null;
+        }
+    }
+
+    public IEnumerator AudioVolumeFadeIn() {
+
+        float fadeRate = 0.005f;
+        while (this.audioSource.volume < 1.0f) {
+            this.audioSource.volume += fadeRate;
+            yield return null;
+        }
+    }
     private IEnumerator PrepareVideoPlayer() 
     {
         LoadVideoClip();
@@ -330,32 +349,46 @@ public class GazeInteractionController : MonoBehaviour
         PlayVideo();
     }
 
-    private IEnumerator ReloadVideoAndPlay() {
-        VideoClip curClip = videoPlayer.clip;
-        this.videoClips.Enqueue(curClip);
-        Debug.Log("ReloadVideoAndPlay: Screen has " + this.videoClips.Count + " videos.");
-        LoadVideoClip();
-
-        while (!videoPlayer.isPrepared) {
-            videoPlayer.Prepare();
+    private IEnumerator WaitAndReload(float waitTime, VideoPlayer vp) {
+        float timer = 0;
+        while (timer < waitTime) {
+            timer += Time.deltaTime;
             yield return null;
         }
-        videoPlayer.time = 0;
-        videoPlayer.SetTargetAudioSource(0, audioSource);
-        videoPlayer.Play();
-        audioSource.Play();
+
+        LoadVideoClip();
+        vp.time = 0;
+        vp.SetTargetAudioSource(0, audioSource);
+        isReloading = false;
     }
 
-    private void ReloadVideoAndPlay(UnityEngine.Video.VideoPlayer vp) {
+    private IEnumerator WaitAndSpawn(float waitTime) {
+        float timer = 0;
+        while (timer < waitTime) {
+            timer += Time.deltaTime;
+            yield return null;
+        }
+
+        SendMessageUpwards("SpawnNext", SendMessageOptions.RequireReceiver);
+        hasSpawnedNextEpisode = true;
+    }
+
+    private void ReloadVideoAndPlay(VideoPlayer vp) {
         VideoClip curClip = vp.clip;
         this.videoClips.Enqueue(curClip);
         Debug.Log("ReloadVideoAndPlay: Screen has " + this.videoClips.Count + " videos.");
-        LoadVideoClip();
 
+        isReloading = true;
+        vp.Stop();
+        audioSource.Stop();
 
-        vp.time = 0;
-        vp.SetTargetAudioSource(0, audioSource);
-        vp.Play();
-        vp.Play();
+        float spawnWaitTime = 2f;
+        float nextVideoWaitTime = allSpawned ? 0f : 6f;
+
+        if (!hasSpawnedNextEpisode) {
+            StartCoroutine(WaitAndSpawn(spawnWaitTime));
+        }
+
+        StartCoroutine(WaitAndReload(nextVideoWaitTime, vp));
     }
 }
