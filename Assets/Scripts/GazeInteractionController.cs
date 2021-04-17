@@ -12,6 +12,9 @@ public class GazeInteractionController : MonoBehaviour
     public float hoverToSelectThreshold = 3;
     public float hoverToActivateThreshold = 6;
     public bool isFirstScreen = false;
+    public XRRayInteractor interactor;
+
+    private XRBaseInteractable[] allInteractables;
 
     private Queue<VideoClip> videoClips = new Queue<VideoClip>();
     private Texture imageTexture;
@@ -20,6 +23,8 @@ public class GazeInteractionController : MonoBehaviour
     private VideoPlayer videoPlayer;
     private AudioSource audioSource;
     private float hoverTimer = 0;
+    private float totalHoverTime = 0;
+    private bool isHovered = false;
     private bool hasSpawnedNextEpisode = false;
     private bool allSpawned = false;
     private bool hasBeenHovered = false;
@@ -27,8 +32,14 @@ public class GazeInteractionController : MonoBehaviour
     private bool isHoverEnabled = true;
 
     private bool isReloading = false;
+    private Vector3 center = new Vector3(0,1.5f,0);
+    private Vector3 rotationAxis = Vector3.up;
+    private float radius = (float) new System.Random().NextDouble() * 4 + 6.0f; // random number between 6 - 10
+    private float rotationSpeed = (float) new System.Random().NextDouble() * 2 + 3.0f; // random number between 3-5
+    private float radiusSpeed = 0.05f;
     private Vector3 originalPosition;
     private float originalDistanceFromCamera;
+    private float originalRotationSpeed;
     
     void Awake() {
         videoPlayer = this.GetComponent<VideoPlayer>();
@@ -45,8 +56,14 @@ public class GazeInteractionController : MonoBehaviour
         material = this.GetComponent<MeshRenderer>().material;
         material.color = Color.gray;
 
-        originalPosition = this.gameObject.transform.position;
-        originalDistanceFromCamera = Vector3.Distance(new Vector3(0,0,0), originalPosition);
+        transform.position = (transform.position - center).normalized * radius + center;
+        transform.LookAt(center, Vector3.up);
+
+        originalPosition = transform.position;
+        originalDistanceFromCamera = radius;
+        originalRotationSpeed = rotationSpeed;
+
+        allInteractables = this.GetComponentsInParent<XRBaseInteractable>();
     }
 
     void OnDisable() {
@@ -82,8 +99,19 @@ public class GazeInteractionController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        transform.LookAt(center, Vector3.up);
+        this.isHovered = IsHovered();
+
+        if (allSpawned) {
+            if (!this.isHovered || hoverTimer <= hoverToSelectThreshold) {
+                transform.RotateAround(center, rotationAxis, rotationSpeed * Time.deltaTime);
+                Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
+                transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
+            }
+        }
+
         if (isHoverEnabled) {
-            if (interactable.isHovered) {
+            if (this.isHovered) {
                 OnHoverEnter();
                 hoverTimer += Time.deltaTime;
 
@@ -110,6 +138,7 @@ public class GazeInteractionController : MonoBehaviour
                 
                 if (allSpawned) {
                     PlayVideo();
+
                     if (isInFocusedMode) {
                         ReleaseFocus();
                     }
@@ -121,6 +150,16 @@ public class GazeInteractionController : MonoBehaviour
                     if (hasBeenHovered) {
                         PauseVideo();
                     }
+                }
+
+                totalHoverTime += hoverTimer;
+                Vector3 newRotationAxis = Vector3.up;
+                newRotationAxis.x += UnityEngine.Random.Range(-0.1f, 0.1f);
+                newRotationAxis.z += UnityEngine.Random.Range(-0.1f, 0.1f);
+                rotationAxis = newRotationAxis.normalized;
+
+                if (totalHoverTime > 60) {
+                    rotationSpeed = originalRotationSpeed * (totalHoverTime / 60f);
                 }
                 hoverTimer = 0;
             }
@@ -170,11 +209,11 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     public void MoveTowardCamera() {
-        float step = Time.deltaTime * 0.1f;
+        float step = Time.deltaTime * 0.2f;
 
         this.transform.position = Vector3.MoveTowards(
             this.transform.position,
-            new Vector3(0f, this.transform.position.y, 0f),
+            center,
             step
         );
 
@@ -189,24 +228,25 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     public void MoveAwayFromCamera() {
-        float step = Vector3.Distance(new Vector3(0,0,0), this.transform.position) * 0.001f;
-        this.transform.position = Vector3.MoveTowards(
-            this.transform.position,
-            new Vector3(
-                this.transform.position.x * 3, 
-                this.transform.position.y, 
-                this.transform.position.z * 3
-            ),
-            step
-        );
+        // float step = Vector3.Distance(new Vector3(0,0,0), this.transform.position) * 0.001f;
+        // this.transform.position = Vector3.MoveTowards(
+        //     this.transform.position,
+        //     (this.transform.position - center) * 3,
+        //     step
+        // );
+
+        radius = 200;
+        radiusSpeed = 0.4f;
     }
     public void ReturnToOriginalPosition() {
-        float step = GetDistanceFromOriginalPos() * 0.01f;
-        this.transform.position = Vector3.MoveTowards(
-            this.transform.position,
-            originalPosition,
-            step
-        );
+
+        radius = originalDistanceFromCamera;
+        radiusSpeed = 10f;
+
+        if (isHovered) {
+            Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
+            transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
+        }
     }
     public void SetFirstScreen(bool value) {
         this.isFirstScreen = value;
@@ -214,11 +254,20 @@ public class GazeInteractionController : MonoBehaviour
 
     public void SetAllSpawned(bool value) {
         this.allSpawned = value;
+        this.hoverToSelectThreshold = 1.0f;
     }
 
-    public bool IsSelected() {
-        // return interactable.isHovered && hoverTimer > hoverToSelectThreshold;
-        return interactable.isHovered;
+    private bool IsHovered() {
+        List<XRBaseInteractable> potentialInteractables = new List<XRBaseInteractable>(allInteractables);
+        interactor.GetValidTargets(potentialInteractables);
+        if (potentialInteractables.Count > 0 && potentialInteractables[0] == (XRBaseInteractable) interactable) {
+            return true;
+        }
+        return false;
+    }
+
+    public bool GetIsSelected() {
+        return this.isHovered && hoverTimer > hoverToSelectThreshold;
     }
 
     public float GetDistanceFromOriginalPos() {
@@ -286,7 +335,7 @@ public class GazeInteractionController : MonoBehaviour
     private IEnumerator FirstScreenFadeIn() {
         material.color = Color.black;
         Color curColor = material.color;
-        float fadeRate = 0.0005f;
+        float fadeRate = 0.001f;
         while (curColor.r < 0.5) {
             curColor.r += fadeRate;
             curColor.g += fadeRate;
@@ -313,7 +362,7 @@ public class GazeInteractionController : MonoBehaviour
     public IEnumerator AudioVolumeFadeOut() {
 
         float fadeRate = 0.005f;
-        while (this.audioSource.volume > 0.2f) {
+        while (this.audioSource.volume > 0.4f) {
             this.audioSource.volume -= fadeRate;
             yield return null;
         }

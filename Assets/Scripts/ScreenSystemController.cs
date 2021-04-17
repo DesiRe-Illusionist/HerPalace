@@ -133,14 +133,13 @@ public class ScreenSystemController : MonoBehaviour
         while (screens.Count > 0) {
             int randomIdx = UnityEngine.Random.Range(0, screens.Count);
             GazeInteractionController screen = screens[randomIdx];
-            // screen.SetEpisodesAssigned(true);
             screenQueue.Enqueue(screen);
             screens.RemoveAt(randomIdx);
         }
     }
     private int GetSelectedScreen() {
         foreach (GazeInteractionController screen in spawnedChildren) {
-            if (screen.IsSelected()) {
+            if (screen.GetIsSelected()) {
                 return screen.GetInstanceID();
             }
         }

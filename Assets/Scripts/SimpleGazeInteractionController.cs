@@ -14,6 +14,11 @@ public class SimpleGazeInteractionController : MonoBehaviour
     public float hoverToSelectThreshold = 2;
     public float hoverToActivateThreshold = 6;
     public bool isFirstScreen = false;
+
+    public XRRayInteractor interactor;
+
+    public List<XRSimpleInteractable> allInteractables;
+
     private VideoPlayer videoPlayer;
     private AudioSource audioSource;
     private Material material;
@@ -21,6 +26,12 @@ public class SimpleGazeInteractionController : MonoBehaviour
     private bool isHoverEnabled = true;
     private bool hasBeenHovered = false;
     private float hoverTimer = 0;
+
+    // public Vector3 center = new Vector3(0,0,0);
+    // public Vector3 axis = Vector3.up;
+    // public float radius = 4.0f;
+    // public float radiusSpeed = 0.05f;
+    // public float rotationSpeed = 8.0f; 
 
     void Awake() {
         videoPlayer = this.GetComponent<VideoPlayer>();
@@ -36,6 +47,8 @@ public class SimpleGazeInteractionController : MonoBehaviour
         material.color = Color.gray;
 
         originalPosition = this.gameObject.transform.position;
+
+        // transform.position = (transform.position - center).normalized * radius + center;
     }
 
     void OnEnable() {
@@ -69,8 +82,12 @@ public class SimpleGazeInteractionController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        // transform.RotateAround(center, axis, rotationSpeed * Time.deltaTime);
+        // Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
+        // transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
+
         if (isHoverEnabled) {
-            if (interactable.isHovered) {
+            if (isHovered()) {
                 hasBeenHovered = true;
                 if (material.color.r < 1.0f) {
                     StartCoroutine(screenHighlight());
@@ -118,6 +135,16 @@ public class SimpleGazeInteractionController : MonoBehaviour
             videoPlayer.Pause();
             audioSource.Pause();
         }
+    }
+
+    private bool isHovered() {
+        List<XRBaseInteractable> potentialInteractables = new List<XRBaseInteractable>(allInteractables);
+        interactor.GetValidTargets(potentialInteractables);
+        if (potentialInteractables.Count > 0 && potentialInteractables[0] == (XRBaseInteractable) interactable) {
+            return true;
+        }
+
+        return false;
     }
 
     private IEnumerator animateFirstScreen() {
