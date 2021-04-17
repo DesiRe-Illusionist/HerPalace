@@ -236,7 +236,7 @@ public class GazeInteractionController : MonoBehaviour
         // );
 
         radius = 200;
-        radiusSpeed = 0.4f;
+        radiusSpeed = Vector3.Distance(center, this.transform.position) * 0.003f;
     }
     public void ReturnToOriginalPosition() {
 
@@ -271,7 +271,7 @@ public class GazeInteractionController : MonoBehaviour
     }
 
     public float GetDistanceFromOriginalPos() {
-        return Vector3.Distance(this.originalPosition, this.transform.position);
+        return Vector3.Distance(this.center, this.transform.position);
     }
 
     public bool IsImageSet() {

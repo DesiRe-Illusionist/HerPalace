@@ -16,6 +16,7 @@ public class ScreenSystemController : MonoBehaviour
     private List<Tuple<Texture, VideoClip>> unassignedAssets = new List<Tuple<Texture, VideoClip>>();
     private bool allSpawned = false;
     private bool screenDisappeared = false;
+    private int disappearedScreenCount = 0;
     public int nonExistentInstanceId = -99;
     public float screenDisappearThreshold = 500f;
     public float restartWaitThreshold = 5f;
@@ -47,24 +48,19 @@ public class ScreenSystemController : MonoBehaviour
     { 
         if (allSpawned && !screenDisappeared) {
             int selectedScreen = GetSelectedScreen();
-            if (selectedScreen == nonExistentInstanceId) {
-                if (spawnedChildren[0].GetDistanceFromOriginalPos() < screenDisappearThreshold) {
-                    foreach (GazeInteractionController screen in spawnedChildren) {
+            foreach (GazeInteractionController screen in spawnedChildren) {
+                if (screen.isActiveAndEnabled && screen.GetInstanceID() != selectedScreen) {
+                    if (screen.GetDistanceFromOriginalPos() < screenDisappearThreshold) {
                         screen.MoveAwayFromCamera();
-                    }
-                } else {
-                    foreach (GazeInteractionController screen in spawnedChildren) {
+                    } else {
                         screen.gameObject.SetActive(false);
-                    }
-                    screenDisappeared = true;
-                }
-            } else {
-                foreach (GazeInteractionController screen in spawnedChildren)
-                {
-                    if (screen.GetInstanceID() != selectedScreen) {
-                        screen.ReturnToOriginalPosition();
+                        disappearedScreenCount += 1;
                     }
                 }
+            }
+
+            if (disappearedScreenCount == spawnedChildren.Count) {
+                screenDisappeared = true;
             }
         }
 
