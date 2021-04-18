@@ -34,10 +34,9 @@ public class GazeInteractionController : MonoBehaviour
     private bool isReloading = false;
     private Vector3 center = new Vector3(0,1.5f,0);
     private Vector3 rotationAxis = Vector3.up;
-    private float radius = (float) new System.Random().NextDouble() * 4 + 6.0f; // random number between 6 - 10
+    private float radius = (float) new System.Random().NextDouble() * 8 + 4.0f; // random number between 4 - 12
     private float rotationSpeed = (float) new System.Random().NextDouble() * 2 + 3.0f; // random number between 3-5
     private float radiusSpeed = 0.05f;
-    private Vector3 originalPosition;
     private float originalDistanceFromCamera;
     private float originalRotationSpeed;
     
@@ -59,7 +58,6 @@ public class GazeInteractionController : MonoBehaviour
         transform.position = (transform.position - center).normalized * radius + center;
         transform.LookAt(center, Vector3.up);
 
-        originalPosition = transform.position;
         originalDistanceFromCamera = radius;
         originalRotationSpeed = rotationSpeed;
 
@@ -101,14 +99,6 @@ public class GazeInteractionController : MonoBehaviour
     {
         transform.LookAt(center, Vector3.up);
         this.isHovered = IsHovered();
-
-        if (allSpawned) {
-            if (!this.isHovered || hoverTimer <= hoverToSelectThreshold) {
-                transform.RotateAround(center, rotationAxis, rotationSpeed * Time.deltaTime);
-                Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
-                transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
-            }
-        }
 
         if (isHoverEnabled) {
             if (this.isHovered) {
@@ -162,6 +152,14 @@ public class GazeInteractionController : MonoBehaviour
                     rotationSpeed = originalRotationSpeed * (totalHoverTime / 60f);
                 }
                 hoverTimer = 0;
+            }
+        }
+
+        if (allSpawned) {
+            if (!this.isHovered || hoverTimer <= hoverToSelectThreshold) {
+                transform.RotateAround(center, rotationAxis, rotationSpeed * Time.deltaTime);
+                Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
+                transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
             }
         }
     }
@@ -236,17 +234,18 @@ public class GazeInteractionController : MonoBehaviour
         // );
 
         radius = 200;
-        radiusSpeed = Vector3.Distance(center, this.transform.position) * 0.003f;
+        radiusSpeed = Vector3.Distance(center, this.transform.position) * 0.03f;
     }
     public void ReturnToOriginalPosition() {
 
         radius = originalDistanceFromCamera;
         radiusSpeed = 10f;
-
-        if (isHovered) {
-            Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
-            transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
-        }
+        Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
+        transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
+        // if (isHovered) {
+        //     Vector3 desiredPosition = (transform.position - center).normalized * radius + center;
+        //     transform.position = Vector3.MoveTowards(transform.position, desiredPosition, Time.deltaTime * radiusSpeed);
+        // }
     }
     public void SetFirstScreen(bool value) {
         this.isFirstScreen = value;
